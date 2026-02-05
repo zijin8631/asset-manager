@@ -134,6 +134,33 @@ npx create-next-app@14 asset-manager --typescript --tailwind --eslint --app --no
   - 所有页面灰色文字改为黑色（Dashboard、资产、投资、设置页面）
   - 底部导航非活动状态文字改为黑色
 
+### 12. 投资功能优化 ✓ (2026-02-05)
+- **资产页面改进**:
+  - 修复投资市值计算问题（正确处理数量类型和金额类型投资）
+  - 在资产页面按权益类、固收类、另类投资分类显示投资数据
+  - 每个投资分类显示市值、投入成本、收益和收益率
+
+- **数据库升级到v4**:
+  - 新增预期收益率字段：`expectedYieldRate`（预期年化收益率）
+  - 新增收益更新频率字段：`yieldUpdateFrequency`（daily/monthly/quarterly/yearly）
+  - 新增上次/下次收益更新日期字段：`lastYieldUpdate`、`nextYieldUpdate`
+
+- **收益管理功能增强**:
+  - 添加收益补登功能，可记录历史收益
+  - 投资编辑/添加表单支持设置预期收益率和更新频率
+  - 收益补登自动更新持仓总收益和收益率计算
+
+- **市值更新简化**:
+  - 编辑/添加表单添加"当前单价（计算值）"只读显示
+  - 系统根据当前价值和持有份额自动计算当前单价
+  - 当前价值更新后自动重新计算单价
+
+- **加减仓流程优化**:
+  - 交易对话框增加提示：加减仓前请先更新当日收益
+  - 支持直接输入金额，系统根据当前单价自动计算份额
+  - 保留手动输入单价和份额的选项
+  - 显示当前单价和计算提示
+
 ---
 
 ## 数据库版本升级说明
@@ -148,6 +175,21 @@ npx create-next-app@14 asset-manager --typescript --tailwind --eslint --app --no
   - `totalProfitPercent`: number - 累计收益率
 - 新增 `yieldRecords` 表: 收益记录历史
 - `accounts` 表类型扩展: 新增 `alipay`、`wechat` 类型
+
+### v2 → v3 变更
+- 新增 `investmentTransactions` 表: 投资交易记录（买入/卖出）
+- `investments` 表结构调整:
+  - 重命名字段：`totalCost` → `totalBuyAmount`
+  - 新增字段：`totalSellAmount`（累计卖出金额）
+  - 新增字段：`yieldRate`（收益率，系统计算）
+  - 移除字段：`manualYield`、`manualYieldDate`、`totalProfitPercent`
+
+### v3 → v4 变更
+- 新增预期收益相关字段:
+  - `expectedYieldRate`: number - 预期年化收益率（%）
+  - `yieldUpdateFrequency`: string - 收益更新频率：daily, monthly, quarterly, yearly
+  - `lastYieldUpdate`: Date - 上次收益更新日期
+  - `nextYieldUpdate`: Date - 下次收益更新日期
 
 ---
 

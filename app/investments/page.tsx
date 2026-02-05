@@ -90,6 +90,9 @@ interface FormData {
   // 数量相关（股票/基金/债券）
   quantity: number;
   price: number;
+  // 预期收益相关
+  expectedYieldRate?: number;
+  yieldUpdateFrequency?: string;
 }
 
 export default function Investments() {
@@ -100,6 +103,7 @@ export default function Investments() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showTradeDialog, setShowTradeDialog] = useState(false);
   const [showXIRRDialog, setShowXIRRDialog] = useState(false);
+  const [showYieldRecordDialog, setShowYieldRecordDialog] = useState(false);
   const [selectedInvestment, setSelectedInvestment] = useState<InvestmentWithId | null>(null);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
 
@@ -114,6 +118,8 @@ export default function Investments() {
     purchaseDate: new Date().toISOString().split('T')[0],
     quantity: 0,
     price: 0,
+    expectedYieldRate: 0,
+    yieldUpdateFrequency: '',
   });
 
   // 编辑表单数据
@@ -127,6 +133,8 @@ export default function Investments() {
     purchaseDate: new Date().toISOString().split('T')[0],
     quantity: 0,
     price: 0,
+    expectedYieldRate: 0,
+    yieldUpdateFrequency: '',
   });
 
   // 交易表单数据
@@ -135,6 +143,14 @@ export default function Investments() {
     quantity: 0,
     price: 0,
     date: new Date().toISOString().split('T')[0],
+    note: '',
+  });
+
+  // 收益补登表单数据
+  const [yieldRecordFormData, setYieldRecordFormData] = useState({
+    yieldRate: 0,
+    yieldAmount: 0,
+    recordDate: new Date().toISOString().split('T')[0],
     note: '',
   });
 
@@ -209,6 +225,8 @@ export default function Investments() {
       purchaseDate: new Date().toISOString().split('T')[0],
       quantity: 0,
       price: 0,
+      expectedYieldRate: 0,
+      yieldUpdateFrequency: '',
     });
     setShowAddDialog(true);
   };
@@ -244,6 +262,8 @@ export default function Investments() {
         : new Date().toISOString().split('T')[0],
       quantity: investment.quantity || 0,
       price,
+      expectedYieldRate: investment.expectedYieldRate || 0,
+      yieldUpdateFrequency: investment.yieldUpdateFrequency || '',
     });
     setShowEditDialog(true);
   };
@@ -260,6 +280,18 @@ export default function Investments() {
       note: '',
     });
     setShowTradeDialog(true);
+  };
+
+  // 打开收益补登对话框
+  const handleOpenYieldRecordDialog = (investment: InvestmentWithId) => {
+    setSelectedInvestment(investment);
+    setYieldRecordFormData({
+      yieldRate: 0,
+      yieldAmount: 0,
+      recordDate: new Date().toISOString().split('T')[0],
+      note: '',
+    });
+    setShowYieldRecordDialog(true);
   };
 
   // 保存添加
@@ -318,6 +350,8 @@ export default function Investments() {
         totalBuyAmount: buyAmount,
         totalProfit: profit,
         yieldRate,
+        expectedYieldRate: addFormData.expectedYieldRate || undefined,
+        yieldUpdateFrequency: addFormData.yieldUpdateFrequency || undefined,
       };
 
       if (typeConfig.hasQuantity) {
@@ -378,6 +412,8 @@ export default function Investments() {
         totalBuyAmount: buyAmount,
         totalProfit: profit,
         yieldRate,
+        expectedYieldRate: editFormData.expectedYieldRate || undefined,
+        yieldUpdateFrequency: editFormData.yieldUpdateFrequency || undefined,
         lastUpdated: new Date(),
       };
 
@@ -485,6 +521,42 @@ export default function Investments() {
       setShowTradeDialog(false);
     } catch (error) {
       console.error('交易失败:', error);
+    }
+  };
+
+  // 保存收益记录
+  const handleSaveYieldRecord = async () => {
+    if (!selectedInvestment || yieldRecordFormData.yieldAmount === 0) return;
+
+    try {
+      // 记录收益记录
+      await db.yieldRecords.add({
+        investmentId: selectedInvestment.id,
+        yieldRate: yieldRecordFormData.yieldRate,
+        yieldAmount: yieldRecordFormData.yieldAmount,
+        recordDate: new Date(yieldRecordFormData.recordDate),
+        note: yieldRecordFormData.note,
+        createdAt: new Date(),
+      });
+
+      // 更新持仓的总收益和收益率
+      const currentInv = investments.find(i => i.id === selectedInvestment.id);
+      if (currentInv) {
+        const newTotalProfit = (currentInv.totalProfit || 0) + yieldRecordFormData.yieldAmount;
+        const totalCost = currentInv.totalBuyAmount || 0;
+        const newYieldRate = totalCost > 0 ? (newTotalProfit / totalCost) * 100 : 0;
+
+        await db.investments.update(selectedInvestment.id, {
+          totalProfit: newTotalProfit,
+          yieldRate: newYieldRate,
+          lastUpdated: new Date(),
+        });
+      }
+
+      loadData();
+      setShowYieldRecordDialog(false);
+    } catch (error) {
+      console.error('保存收益记录失败:', error);
     }
   };
 
@@ -630,6 +702,13 @@ export default function Investments() {
                           title="减仓"
                         >
                           <Minus className="w-4 h-4 text-red-600" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenYieldRecordDialog(inv)}
+                          className="p-1.5 rounded-lg hover:bg-yellow-50 transition-colors"
+                          title="收益补登"
+                        >
+                          <Plus className="w-4 h-4 text-yellow-600 rotate-45" />
                         </button>
                         <button
                           onClick={() => handleDelete(inv.id)}
@@ -855,6 +934,21 @@ export default function Investments() {
               </p>
             </div>
 
+            {/* 当前单价（只读显示，有数量类型） */}
+            {hasQuantityType(addFormData.type) && addFormData.quantity > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">当前单价（计算值）</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={addFormData.quantity > 0 ? (addFormData.currentValue / addFormData.quantity).toFixed(2) : '0.00'}
+                  readOnly
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-black"
+                />
+                <p className="text-xs text-black mt-1">根据当前价值和持有份额自动计算</p>
+              </div>
+            )}
+
             {/* 买入金额（可编辑，与单价联动） */}
             {hasQuantityType(addFormData.type) && (
               <div>
@@ -880,6 +974,37 @@ export default function Investments() {
                 </p>
               </div>
             )}
+
+            {/* 预期收益率（可选） */}
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">预期年化收益率（%）</label>
+              <input
+                type="number"
+                step="0.01"
+                value={addFormData.expectedYieldRate || 0}
+                onChange={(e) => setAddFormData({ ...addFormData, expectedYieldRate: Number(e.target.value) })}
+                placeholder="例如: 3.5"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+              <p className="text-xs text-black mt-1">用于固收类产品的预期收益率，股票基金等可不填</p>
+            </div>
+
+            {/* 收益更新频率（可选） */}
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">收益更新频率</label>
+              <select
+                value={addFormData.yieldUpdateFrequency || ''}
+                onChange={(e) => setAddFormData({ ...addFormData, yieldUpdateFrequency: e.target.value })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              >
+                <option value="">不自动更新</option>
+                <option value="daily">每日</option>
+                <option value="monthly">每月</option>
+                <option value="quarterly">每季度</option>
+                <option value="yearly">每年</option>
+              </select>
+              <p className="text-xs text-black mt-1">设置后系统会提醒更新收益</p>
+            </div>
 
             {/* 购买时间 */}
             <div>
@@ -1058,6 +1183,21 @@ export default function Investments() {
               </p>
             </div>
 
+            {/* 当前单价（只读显示，有数量类型） */}
+            {hasQuantityType(editFormData.type) && editFormData.quantity > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">当前单价（计算值）</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editFormData.quantity > 0 ? (editFormData.currentValue / editFormData.quantity).toFixed(2) : '0.00'}
+                  readOnly
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-black"
+                />
+                <p className="text-xs text-black mt-1">根据当前价值和持有份额自动计算</p>
+              </div>
+            )}
+
             {/* 买入金额（可编辑，与单价联动） */}
             {hasQuantityType(editFormData.type) && (
               <div>
@@ -1082,6 +1222,37 @@ export default function Investments() {
                 </p>
               </div>
             )}
+
+            {/* 预期收益率（可选） */}
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">预期年化收益率（%）</label>
+              <input
+                type="number"
+                step="0.01"
+                value={editFormData.expectedYieldRate || 0}
+                onChange={(e) => setEditFormData({ ...editFormData, expectedYieldRate: Number(e.target.value) })}
+                placeholder="例如: 3.5"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+              <p className="text-xs text-black mt-1">用于固收类产品的预期收益率，股票基金等可不填</p>
+            </div>
+
+            {/* 收益更新频率（可选） */}
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">收益更新频率</label>
+              <select
+                value={editFormData.yieldUpdateFrequency || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, yieldUpdateFrequency: e.target.value })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              >
+                <option value="">不自动更新</option>
+                <option value="daily">每日</option>
+                <option value="monthly">每月</option>
+                <option value="quarterly">每季度</option>
+                <option value="yearly">每年</option>
+              </select>
+              <p className="text-xs text-black mt-1">设置后系统会提醒更新收益</p>
+            </div>
 
             {/* 购买时间 */}
             <div>
@@ -1133,39 +1304,82 @@ export default function Investments() {
             {/* 数量和单价（股票/基金/债券等） */}
             {selectedInvestment && hasQuantityType(selectedInvestment.type) && (
               <>
+                <div className="bg-blue-50 rounded-xl p-4 mb-2">
+                  <p className="text-sm text-black font-medium">提示：加减仓前请先更新当日收益，确保当前单价准确</p>
+                  <p className="text-xs text-black mt-1">
+                    当前单价：¥ {selectedInvestment.currentPrice?.toFixed(2) || '未设置'}
+                    {selectedInvestment.currentPrice === 0 && ' (请先更新收益)'}
+                  </p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-black mb-1">
-                    {tradeType === 'buy' ? '买入份额' : '卖出份额'}
+                    {tradeType === 'buy' ? '买入金额' : '卖出金额'}（系统自动计算份额）
                   </label>
                   <input
                     type="number"
-                    value={tradeFormData.quantity}
-                    onChange={(e) => {
-                      const quantity = Number(e.target.value);
-                      setTradeFormData({ ...tradeFormData, quantity });
-                    }}
-                    placeholder="例如: 100"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-black mb-1">单价</label>
-                  <input
-                    type="number"
                     step="0.01"
-                    value={tradeFormData.price}
+                    value={tradeFormData.amount}
                     onChange={(e) => {
-                      const price = Number(e.target.value);
+                      const amount = Number(e.target.value);
+                      const currentPrice = selectedInvestment.currentPrice || selectedInvestment.avgCostPrice || 1;
+                      const quantity = currentPrice > 0 ? amount / currentPrice : 0;
                       setTradeFormData({
                         ...tradeFormData,
-                        price,
-                        amount: tradeFormData.quantity * price,
+                        amount,
+                        quantity,
+                        price: currentPrice,
                       });
                     }}
-                    placeholder="例如: 1.23"
+                    placeholder="例如: 5000"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
                   />
+                  <p className="text-xs text-black mt-1">
+                    自动计算份额：金额 ÷ 单价 = {tradeFormData.amount > 0 ? (tradeFormData.quantity || 0).toFixed(2) : '0'} 份
+                    {selectedInvestment.currentPrice === 0 && ' (使用成本单价计算)'}
+                  </p>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-1">交易单价</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={tradeFormData.price}
+                      onChange={(e) => {
+                        const price = Number(e.target.value);
+                        const amount = tradeFormData.quantity * price;
+                        setTradeFormData({
+                          ...tradeFormData,
+                          price,
+                          amount,
+                        });
+                      }}
+                      placeholder="例如: 1.23"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-1">交易份额</label>
+                    <input
+                      type="number"
+                      value={tradeFormData.quantity}
+                      onChange={(e) => {
+                        const quantity = Number(e.target.value);
+                        const amount = quantity * tradeFormData.price;
+                        setTradeFormData({
+                          ...tradeFormData,
+                          quantity,
+                          amount,
+                        });
+                      }}
+                      placeholder="例如: 100"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-black">
+                  您可以直接输入金额（推荐），系统自动计算份额；也可以手动输入单价和份额
+                </p>
               </>
             )}
 
@@ -1224,6 +1438,87 @@ export default function Investments() {
               className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800"
             >
               确定
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 收益补登对话框 */}
+      <Dialog open={showYieldRecordDialog} onOpenChange={setShowYieldRecordDialog}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>收益补登</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedInvestment && (
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-sm font-medium text-black">{selectedInvestment.name}</p>
+                <p className="text-xs text-black">{selectedInvestment.symbol}</p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">收益金额</label>
+              <input
+                type="number"
+                step="0.01"
+                value={yieldRecordFormData.yieldAmount}
+                onChange={(e) => setYieldRecordFormData({ ...yieldRecordFormData, yieldAmount: Number(e.target.value) })}
+                placeholder="例如: 500"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">收益率（%）</label>
+              <input
+                type="number"
+                step="0.01"
+                value={yieldRecordFormData.yieldRate}
+                onChange={(e) => setYieldRecordFormData({ ...yieldRecordFormData, yieldRate: Number(e.target.value) })}
+                placeholder="例如: 3.5"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">记录日期</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={yieldRecordFormData.recordDate}
+                  onChange={(e) => setYieldRecordFormData({ ...yieldRecordFormData, recordDate: e.target.value })}
+                  className="w-full px-4 py-3 pr-10 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+                />
+                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-black pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">备注（可选）</label>
+              <input
+                type="text"
+                value={yieldRecordFormData.note}
+                onChange={(e) => setYieldRecordFormData({ ...yieldRecordFormData, note: e.target.value })}
+                placeholder="例如: 季度分红"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setShowYieldRecordDialog(false)}
+              className="px-4 py-2 text-black hover:bg-gray-100 rounded-xl"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveYieldRecord}
+              className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800"
+            >
+              保存
             </button>
           </DialogFooter>
         </DialogContent>

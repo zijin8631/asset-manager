@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CreditCard, Wallet, Landmark, Plus, Edit2, Trash2, Smartphone, WalletCards, TrendingUp } from 'lucide-react';
-import { db, Account, AccountType, Investment } from '@/lib/db';
+import { CreditCard, Wallet, Landmark, Plus, Edit2, Trash2, Smartphone, WalletCards, TrendingUp, Coins, BadgeDollarSign, PiggyBank, DollarSign } from 'lucide-react';
+import { db, Account, AccountType, Investment, InvestmentType } from '@/lib/db';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,34 @@ const ACCOUNT_CATEGORIES = [
   { name: '银行', types: ['bank'] as AccountType[] },
   { name: '证券', types: ['security'] as AccountType[] },
 ];
+
+// 投资类型配置（从投资页面复制）
+const INVESTMENT_TYPES: { value: InvestmentType; label: string; icon: any; category: string; hasQuantity: boolean }[] = [
+  { value: 'stock', label: '股票', icon: TrendingUp, category: '权益类', hasQuantity: true },
+  { value: 'fund', label: '基金', icon: BadgeDollarSign, category: '权益类', hasQuantity: true },
+  { value: 'us_stock', label: '美股', icon: TrendingUp, category: '权益类', hasQuantity: true },
+  { value: 'bond', label: '债券', icon: Landmark, category: '固收类', hasQuantity: true },
+  { value: 'cd', label: '同业存单', icon: Landmark, category: '固收类', hasQuantity: false },
+  { value: 'gold', label: '黄金', icon: Coins, category: '另类投资', hasQuantity: false },
+  { value: 'wealth', label: '理财', icon: Wallet, category: '固收类', hasQuantity: false },
+  { value: 'fixed_income', label: '固收+', icon: PiggyBank, category: '固收类', hasQuantity: false },
+  { value: 'reits', label: 'REITs', icon: DollarSign, category: '另类投资', hasQuantity: true },
+  { value: 'crypto', label: '加密货币', icon: Coins, category: '另类投资', hasQuantity: true },
+];
+
+// 按分类分组投资类型
+const INVESTMENT_CATEGORIES = [
+  { name: '权益类', types: ['stock', 'fund', 'us_stock'] as InvestmentType[] },
+  { name: '固收类', types: ['bond', 'cd', 'wealth', 'fixed_income'] as InvestmentType[] },
+  { name: '另类投资', types: ['gold', 'reits', 'crypto'] as InvestmentType[] },
+];
+
+// 投资分类图标映射
+const INVESTMENT_CATEGORY_ICONS: Record<string, any> = {
+  '权益类': TrendingUp,
+  '固收类': Landmark,
+  '另类投资': Coins,
+};
 
 // 分类图标映射
 const CATEGORY_ICONS: Record<string, any> = {
@@ -70,9 +98,10 @@ export default function Accounts() {
 
   const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
   const totalInvestmentValue = investments.reduce((sum, inv) => {
-    const quantity = inv.quantity || 0;
-    const currentPrice = inv.currentPrice || 0;
-    return sum + (quantity * currentPrice);
+    if (inv.quantity && inv.currentPrice) {
+      return sum + inv.quantity * inv.currentPrice;
+    }
+    return sum + (inv.currentValue || 0);
   }, 0);
   const totalAssets = totalBalance + totalInvestmentValue;
 
@@ -99,9 +128,14 @@ export default function Accounts() {
     let totalProfit = 0;
 
     investments.forEach(inv => {
-      const quantity = inv.quantity || 0;
-      const currentPrice = inv.currentPrice || 0;
-      const currentValue = quantity * currentPrice;
+      // 计算当前价值
+      let currentValue = 0;
+      if (inv.quantity && inv.currentPrice) {
+        currentValue = inv.quantity * inv.currentPrice;
+      } else {
+        currentValue = inv.currentValue || 0;
+      }
+
       const cost = inv.totalBuyAmount || 0;
 
       totalCost += cost;
@@ -110,6 +144,31 @@ export default function Accounts() {
     });
 
     return { totalCost, totalValue, totalProfit };
+  };
+
+  // 获取投资类型配置
+  const getInvestmentType = (type: InvestmentType) => {
+    return INVESTMENT_TYPES.find(t => t.value === type) || INVESTMENT_TYPES[0];
+  };
+
+  // 按分类获取持仓
+  const getCategoryInvestments = (categoryName: string) => {
+    const category = INVESTMENT_CATEGORIES.find(c => c.name === categoryName);
+    if (!category) return [];
+    return investments.filter(inv => category.types.includes(inv.type));
+  };
+
+  // 计算分类收益
+  const getCategoryInvestmentStats = (categoryName: string) => {
+    const categoryInvestments = getCategoryInvestments(categoryName);
+    const value = categoryInvestments.reduce((sum, inv) => {
+      if (inv.quantity && inv.currentPrice) {
+        return sum + inv.quantity * inv.currentPrice;
+      }
+      return sum + (inv.currentValue || 0);
+    }, 0);
+    const cost = categoryInvestments.reduce((sum, inv) => sum + (inv.totalBuyAmount || 0), 0);
+    return { value, cost, profit: value - cost };
   };
 
   const handleOpenDialog = (account?: Account) => {
@@ -261,50 +320,63 @@ export default function Accounts() {
           );
         })}
 
-        {/* 投资部分 */}
-        {investments.length > 0 && (
-          <div className="space-y-3">
-            {/* 分类标题 */}
-            <div className="flex items-center gap-2 px-1">
-              <TrendingUp className="w-4 h-4 text-black" />
-              <span className="text-sm font-medium text-black">投资</span>
-              <span className="text-sm text-black ml-auto">¥ {totalInvestmentValue.toLocaleString()}</span>
-            </div>
+        {/* 投资部分 - 按分类显示 */}
+        {INVESTMENT_CATEGORIES.map((category) => {
+          const categoryInvestments = getCategoryInvestments(category.name);
+          const stats = getCategoryInvestmentStats(category.name);
+          const CategoryIcon = INVESTMENT_CATEGORY_ICONS[category.name];
 
-            {/* 投资汇总卡片 */}
-            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-black" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-black">投资组合</p>
-                    <p className="text-xs text-black">共 {investments.length} 个持仓</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xl font-semibold text-black">¥ {totalInvestmentValue.toLocaleString()}</p>
-                  <p className={`text-xs ${getInvestmentStats().totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {getInvestmentStats().totalProfit >= 0 ? '+' : ''}¥ {getInvestmentStats().totalProfit.toLocaleString()}
-                  </p>
-                </div>
+          if (categoryInvestments.length === 0) return null;
+
+          return (
+            <div key={category.name} className="space-y-3">
+              {/* 分类标题 */}
+              <div className="flex items-center gap-2 px-1">
+                <CategoryIcon className="w-4 h-4 text-black" />
+                <span className="text-sm font-medium text-black">{category.name}</span>
+                <span className="text-sm text-black ml-auto">¥ {stats.value.toLocaleString()}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  stats.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {stats.profit >= 0 ? '+' : ''}{stats.profit.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                </span>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs text-black mb-1">总投入</p>
-                  <p className="font-medium text-black">¥ {getInvestmentStats().totalCost.toLocaleString()}</p>
+
+              {/* 该分类下的投资汇总卡片 */}
+              <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                      <CategoryIcon className="w-6 h-6 text-black" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-black">{category.name}</p>
+                      <p className="text-xs text-black">共 {categoryInvestments.length} 个持仓</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-semibold text-black">¥ {stats.value.toLocaleString()}</p>
+                    <p className={`text-xs ${stats.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {stats.profit >= 0 ? '+' : ''}¥ {stats.profit.toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-black mb-1">收益率</p>
-                  <p className={`font-medium ${getInvestmentStats().totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {getInvestmentStats().totalCost > 0 ? ((getInvestmentStats().totalProfit / getInvestmentStats().totalCost) * 100).toFixed(2) : '0.00'}%
-                  </p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-black mb-1">总投入</p>
+                    <p className="font-medium text-black">¥ {stats.cost.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-black mb-1">收益率</p>
+                    <p className={`font-medium ${stats.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {stats.cost > 0 ? ((stats.profit / stats.cost) * 100).toFixed(2) : '0.00'}%
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })}
       </div>
 
       {accounts.length === 0 && investments.length === 0 && (

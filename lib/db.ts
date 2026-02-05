@@ -72,6 +72,11 @@ export interface Investment {
   totalSellAmount?: number;   // 累计卖出金额
   totalProfit?: number;       // 累计收益金额
   yieldRate?: number;         // 收益率（%），系统计算
+  // 预期收益相关
+  expectedYieldRate?: number; // 预期年化收益率（%）
+  yieldUpdateFrequency?: string; // 收益更新频率：daily, monthly, quarterly, yearly
+  lastYieldUpdate?: Date;     // 上次收益更新日期
+  nextYieldUpdate?: Date;     // 下次收益更新日期
   lastUpdated: Date;
   createdAt: Date;
 }
@@ -109,7 +114,7 @@ export class AssetDatabase extends Dexie {
 
   constructor() {
     super('AssetManagerDB');
-    this.version(3).stores({
+    this.version(4).stores({
       accounts: '++id, name, type, createdAt',
       transactions: '++id, accountId, type, date, createdAt',
       investments: '++id, type, symbol, purchaseDate, lastUpdated, createdAt',
