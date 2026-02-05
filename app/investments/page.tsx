@@ -16,6 +16,7 @@ import {
   BadgeDollarSign,
   Minus,
   Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import { db, Investment, InvestmentType, InvestmentTransaction } from '@/lib/db';
 import {
@@ -90,15 +91,15 @@ interface FormData {
   symbol: string;
   name: string;
   subType: string;
-  buyAmount: number;
-  currentValue: number;
   purchaseDate: string;
-  // 数量相关（股票/基金/债券）
-  quantity: number;
-  price: number;
   // 预期收益相关
   expectedYieldRate?: number;
   yieldUpdateFrequency?: string;
+  // 以下字段仅用于添加表单，编辑表单不显示
+  buyAmount?: number;
+  currentValue?: number;
+  quantity?: number;
+  price?: number;
 }
 
 export default function Investments() {
@@ -110,6 +111,7 @@ export default function Investments() {
   const [showTradeDialog, setShowTradeDialog] = useState(false);
   const [showXIRRDialog, setShowXIRRDialog] = useState(false);
   const [showYieldRecordDialog, setShowYieldRecordDialog] = useState(false);
+  const [showUpdateYieldDialog, setShowUpdateYieldDialog] = useState(false);
   const [selectedInvestment, setSelectedInvestment] = useState<InvestmentWithId | null>(null);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
 
@@ -119,13 +121,13 @@ export default function Investments() {
     symbol: '',
     name: '',
     subType: '',
-    buyAmount: 0,
-    currentValue: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
-    quantity: 0,
-    price: 0,
     expectedYieldRate: 0,
     yieldUpdateFrequency: '',
+    buyAmount: 0,
+    currentValue: 0,
+    quantity: 0,
+    price: 0,
   });
 
   // 编辑表单数据
@@ -134,11 +136,7 @@ export default function Investments() {
     symbol: '',
     name: '',
     subType: '',
-    buyAmount: 0,
-    currentValue: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
-    quantity: 0,
-    price: 0,
     expectedYieldRate: 0,
     yieldUpdateFrequency: '',
   });
@@ -157,6 +155,13 @@ export default function Investments() {
     yieldRate: 0,
     yieldAmount: 0,
     recordDate: new Date().toISOString().split('T')[0],
+    note: '',
+  });
+
+  // 更新收益表单数据（简化版：统一输入当天价值）
+  const [updateYieldFormData, setUpdateYieldFormData] = useState({
+    currentValue: 0, // 当天价值（对于有数量类型：当前价值 = 数量 × 当前价格）
+    updateDate: new Date().toISOString().split('T')[0],
     note: '',
   });
 
@@ -187,7 +192,7 @@ export default function Investments() {
     return sum + (inv.currentValue || 0);
   }, 0);
   const totalProfit = investments.reduce((sum, inv) => sum + (inv.totalProfit || 0), 0);
-  const profitPercent = totalCost > 0 ? ((totalProfit / totalCost) * 100).toFixed(2) : '0.00';
+  const profitPercent = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
 
   // 获取投资类型配置
   const getInvestmentType = (type: InvestmentType) => {
@@ -226,13 +231,13 @@ export default function Investments() {
       symbol: '',
       name: '',
       subType: '',
-      buyAmount: 0,
-      currentValue: 0,
       purchaseDate: new Date().toISOString().split('T')[0],
-      quantity: 0,
-      price: 0,
       expectedYieldRate: 0,
       yieldUpdateFrequency: '',
+      buyAmount: 0,
+      currentValue: 0,
+      quantity: 0,
+      price: 0,
     });
     setShowAddDialog(true);
   };
@@ -241,33 +246,14 @@ export default function Investments() {
   const handleOpenEditDialog = (investment: InvestmentWithId) => {
     setSelectedInvestment(investment);
 
-    // 计算正确的价格字段：优先使用平均成本价，其次使用当前价格
-    const price = investment.avgCostPrice || investment.currentPrice || 0;
-
-    // 计算当前价值：如果有数量和当前价格则计算，否则使用存储的当前价值
-    let currentValue = investment.currentValue || 0;
-    if (investment.quantity && investment.currentPrice) {
-      currentValue = investment.quantity * investment.currentPrice;
-    }
-
-    // 计算买入金额：如果有总买入金额则使用，否则根据数量和价格计算
-    let buyAmount = investment.totalBuyAmount || 0;
-    if (investment.quantity && price > 0 && buyAmount === 0) {
-      buyAmount = investment.quantity * price;
-    }
-
     setEditFormData({
       type: investment.type,
       symbol: investment.symbol,
       name: investment.name,
       subType: investment.subType || '',
-      buyAmount,
-      currentValue,
       purchaseDate: investment.purchaseDate
         ? investment.purchaseDate.toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0],
-      quantity: investment.quantity || 0,
-      price,
       expectedYieldRate: investment.expectedYieldRate || 0,
       yieldUpdateFrequency: investment.yieldUpdateFrequency || '',
     });
@@ -300,6 +286,28 @@ export default function Investments() {
     setShowYieldRecordDialog(true);
   };
 
+  // 打开更新收益对话框
+  const handleOpenUpdateYieldDialog = (investment: InvestmentWithId) => {
+    setSelectedInvestment(investment);
+
+    // 根据投资类型预填充表单
+    const typeConfig = getInvestmentType(investment.type);
+    const hasQuantity = typeConfig.hasQuantity;
+
+    // 计算当天价值：有数量类型 = 数量 × 当前价格，无数量类型 = 当前价值
+    const currentValue = hasQuantity && investment.quantity && investment.currentPrice
+      ? investment.quantity * investment.currentPrice
+      : investment.currentValue || 0;
+
+    setUpdateYieldFormData({
+      currentValue,
+      updateDate: new Date().toISOString().split('T')[0],
+      note: '',
+    });
+
+    setShowUpdateYieldDialog(true);
+  };
+
   // 保存添加
   const handleSaveAdd = async () => {
     if (!addFormData.name.trim()) return;
@@ -308,16 +316,16 @@ export default function Investments() {
     const purchaseDate = new Date(addFormData.purchaseDate);
 
     // 计算买入金额、当前价值、收益等
-    let buyAmount = addFormData.buyAmount;
-    let currentValue = addFormData.currentValue;
+    let buyAmount = addFormData.buyAmount!;
+    let currentValue = addFormData.currentValue!;
     let profit = currentValue - buyAmount;
     let yieldRate = buyAmount > 0 ? (profit / buyAmount) * 100 : 0;
 
     // 对于有数量的类型，根据份额和单价计算
     if (typeConfig.hasQuantity) {
-      if (addFormData.quantity > 0 && addFormData.price > 0) {
+      if (addFormData.quantity! > 0 && addFormData.price! > 0) {
         // 使用输入的价格作为平均成本价
-        buyAmount = addFormData.quantity * addFormData.price;
+        buyAmount = addFormData.quantity! * addFormData.price!;
         // 如果当前价值未输入，默认为买入金额（无收益）
         if (currentValue === 0) {
           currentValue = buyAmount;
@@ -386,28 +394,6 @@ export default function Investments() {
   const handleSaveEdit = async () => {
     if (!selectedInvestment || !editFormData.name.trim()) return;
 
-    const typeConfig = getInvestmentType(editFormData.type);
-
-    // 计算买入金额、当前价值、收益等
-    let buyAmount = editFormData.buyAmount;
-    let currentValue = editFormData.currentValue;
-    let profit = currentValue - buyAmount;
-    let yieldRate = buyAmount > 0 ? (profit / buyAmount) * 100 : 0;
-
-    // 对于有数量的类型，根据份额和单价计算
-    if (typeConfig.hasQuantity) {
-      if (editFormData.quantity > 0 && editFormData.price > 0) {
-        // 使用输入的价格作为平均成本价
-        buyAmount = editFormData.quantity * editFormData.price;
-        // 如果当前价值未输入，默认为买入金额（无收益）
-        if (currentValue === 0) {
-          currentValue = buyAmount;
-        }
-        profit = currentValue - buyAmount;
-        yieldRate = buyAmount > 0 ? (profit / buyAmount) * 100 : 0;
-      }
-    }
-
     try {
       const updateData: any = {
         type: editFormData.type,
@@ -415,26 +401,10 @@ export default function Investments() {
         name: editFormData.name,
         subType: editFormData.subType,
         purchaseDate: new Date(editFormData.purchaseDate),
-        totalBuyAmount: buyAmount,
-        totalProfit: profit,
-        yieldRate,
         expectedYieldRate: editFormData.expectedYieldRate || undefined,
         yieldUpdateFrequency: editFormData.yieldUpdateFrequency || undefined,
         lastUpdated: new Date(),
       };
-
-      if (typeConfig.hasQuantity) {
-        // 计算当前单价：当前价值 / 持有份额
-        const currentPrice = editFormData.quantity > 0 ? currentValue / editFormData.quantity : 0;
-        updateData.quantity = editFormData.quantity;
-        updateData.avgCostPrice = editFormData.price;
-        updateData.currentPrice = currentPrice;
-        updateData.currentValue = currentValue;
-      } else {
-        // 无数量类型
-        updateData.totalCost = buyAmount;
-        updateData.currentValue = currentValue;
-      }
 
       await db.investments.update(selectedInvestment.id, updateData);
 
@@ -566,6 +536,47 @@ export default function Investments() {
     }
   };
 
+  // 保存更新收益
+  const handleSaveUpdateYield = async () => {
+    if (!selectedInvestment) return;
+
+    const typeConfig = getInvestmentType(selectedInvestment.type);
+    const hasQuantity = typeConfig.hasQuantity;
+
+    try {
+      let updateData: any = {
+        lastUpdated: new Date(),
+      };
+
+      // 统一使用当天价值计算收益
+      const currentValue = updateYieldFormData.currentValue;
+      const totalBuyAmount = selectedInvestment.totalBuyAmount || 0;
+      const totalProfit = currentValue - totalBuyAmount;
+      const yieldRate = totalBuyAmount > 0 ? (totalProfit / totalBuyAmount) * 100 : 0;
+
+      // 更新基础字段
+      updateData.currentValue = currentValue;
+      updateData.totalProfit = totalProfit;
+      updateData.yieldRate = yieldRate;
+
+      // 对于有数量类型，计算当前价格
+      if (hasQuantity) {
+        const quantity = selectedInvestment.quantity || 0;
+        if (quantity > 0) {
+          updateData.currentPrice = currentValue / quantity;
+        } else {
+          updateData.currentPrice = 0;
+        }
+      }
+
+      await db.investments.update(selectedInvestment.id, updateData);
+      loadData();
+      setShowUpdateYieldDialog(false);
+    } catch (error) {
+      console.error('更新收益失败:', error);
+    }
+  };
+
   // 删除持仓
   const handleDelete = async (id: number) => {
     if (!confirm('确定要删除这个持仓吗？')) return;
@@ -694,6 +705,13 @@ export default function Investments() {
                           title="编辑"
                         >
                           <Edit2 className="w-4 h-4 text-black hover:text-blue-600" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenUpdateYieldDialog(inv)}
+                          className="p-1.5 rounded-lg hover:bg-purple-50 transition-colors"
+                          title="更新收益"
+                        >
+                          <RefreshCw className="w-4 h-4 text-purple-600" />
                         </button>
                         <button
                           onClick={() => handleOpenTradeDialog(inv, 'buy')}
@@ -1117,117 +1135,9 @@ export default function Investments() {
               </div>
             )}
 
-            {/* 数量和单价（股票/基金/债券/美股/REITs/加密货币） */}
-            {hasQuantityType(editFormData.type) && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-black mb-1">持有份额</label>
-                  <input
-                    type="number"
-                    value={editFormData.quantity}
-                    onChange={(e) => {
-                      const quantity = Number(e.target.value);
-                      // 如果买入金额已设置，重新计算单价；否则重新计算买入金额
-                      let price = editFormData.price;
-                      let buyAmount = editFormData.buyAmount;
-                      if (editFormData.buyAmount > 0 && quantity > 0) {
-                        // 优先保持买入金额不变，重新计算单价
-                        price = editFormData.buyAmount / quantity;
-                      } else if (editFormData.price > 0) {
-                        // 保持单价不变，重新计算买入金额
-                        buyAmount = quantity * editFormData.price;
-                      }
-                      setEditFormData({
-                        ...editFormData,
-                        quantity,
-                        price,
-                        buyAmount,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-black mb-1">成本单价</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editFormData.price}
-                    onChange={(e) => {
-                      const price = Number(e.target.value);
-                      const buyAmount = editFormData.quantity * price;
-                      setEditFormData({
-                        ...editFormData,
-                        price,
-                        buyAmount,
-                      });
-                    }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
-                  />
-                  <p className="text-xs text-black mt-1">
-                    自动计算买入金额：持有份额 × 成本单价 = {editFormData.quantity * editFormData.price}
-                  </p>
-                </div>
-              </>
-            )}
 
-            {/* 当前价值 */}
-            <div>
-              <label className="block text-sm font-medium text-black mb-1">当前价值</label>
-              <input
-                type="number"
-                step="0.01"
-                value={editFormData.currentValue}
-                onChange={(e) => setEditFormData({ ...editFormData, currentValue: Number(e.target.value) })}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
-              />
-              <p className="text-xs text-black mt-1">
-                {hasQuantityType(editFormData.type)
-                  ? `系统自动计算：当前单价 = 当前价值 ÷ 持有份额 = ${editFormData.quantity > 0 ? (editFormData.currentValue / editFormData.quantity).toFixed(2) : '0.00'}`
-                  : '当前价值 = 买入金额 + 持有收益'
-                }
-              </p>
-            </div>
 
-            {/* 当前单价（只读显示，有数量类型） */}
-            {hasQuantityType(editFormData.type) && editFormData.quantity > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-black mb-1">当前单价（计算值）</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editFormData.quantity > 0 ? (editFormData.currentValue / editFormData.quantity).toFixed(2) : '0.00'}
-                  readOnly
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-black"
-                />
-                <p className="text-xs text-black mt-1">根据当前价值和持有份额自动计算</p>
-              </div>
-            )}
 
-            {/* 买入金额（可编辑，与单价联动） */}
-            {hasQuantityType(editFormData.type) && (
-              <div>
-                <label className="block text-sm font-medium text-black mb-1">买入金额</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editFormData.buyAmount}
-                  onChange={(e) => {
-                    const buyAmount = Number(e.target.value);
-                    const price = editFormData.quantity > 0 ? buyAmount / editFormData.quantity : 0;
-                    setEditFormData({
-                      ...editFormData,
-                      buyAmount,
-                      price,
-                    });
-                  }}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
-                />
-                <p className="text-xs text-black mt-1">
-                  自动计算单价：买入金额 ÷ 持有份额 = {editFormData.quantity > 0 ? (editFormData.buyAmount / editFormData.quantity).toFixed(2) : '0.00'}
-                </p>
-              </div>
-            )}
 
             {/* 预期收益率（可选） */}
             <div>
@@ -1525,6 +1435,121 @@ export default function Investments() {
               className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800"
             >
               保存
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 更新收益对话框 */}
+      <Dialog open={showUpdateYieldDialog} onOpenChange={setShowUpdateYieldDialog}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>更新收益</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedInvestment && (
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <div>
+                  <p className="text-sm font-medium text-black">{selectedInvestment.name}</p>
+                  <p className="text-xs text-black">{selectedInvestment.symbol}</p>
+                  <p className="text-xs text-black mt-1">
+                    {selectedInvestment.type === 'stock' ? '股票' :
+                     selectedInvestment.type === 'fund' ? '基金' :
+                     selectedInvestment.type === 'bond' ? '债券' :
+                     selectedInvestment.type === 'us_stock' ? '美股' :
+                     selectedInvestment.type === 'gold' ? '黄金' :
+                     selectedInvestment.type === 'wealth' ? '理财' :
+                     selectedInvestment.type === 'fixed_income' ? '固收+' :
+                     selectedInvestment.type === 'cd' ? '同业存单' :
+                     selectedInvestment.type === 'reits' ? 'REITs' :
+                     selectedInvestment.type === 'crypto' ? '加密货币' : '投资'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {hasQuantityType(selectedInvestment.type) && (
+                    <>
+                      <div>
+                        <p className="text-gray-500">持有数量</p>
+                        <p className="text-black font-medium">{selectedInvestment.quantity || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">当前单价</p>
+                        <p className="text-black font-medium">¥ {selectedInvestment.currentPrice?.toFixed(2) || '0.00'}</p>
+                      </div>
+                    </>
+                  )}
+                  <div className={hasQuantityType(selectedInvestment.type) ? 'col-span-2' : ''}>
+                    <p className="text-gray-500">总买入金额</p>
+                    <p className="text-black font-medium">¥ {(selectedInvestment.totalBuyAmount || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 当天价值输入 */}
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">当天价值</label>
+              <input
+                type="number"
+                step="0.01"
+                value={updateYieldFormData.currentValue}
+                onChange={(e) => setUpdateYieldFormData({ ...updateYieldFormData, currentValue: Number(e.target.value) })}
+                placeholder={selectedInvestment && hasQuantityType(selectedInvestment.type) ? "例如: 10500（数量 × 单价）" : "例如: 10500"}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+              {selectedInvestment && (
+                <div className="mt-2 space-y-1 text-xs text-black">
+                  <p>• 总买入金额：¥ {(selectedInvestment.totalBuyAmount || 0).toLocaleString()}</p>
+                  {hasQuantityType(selectedInvestment.type) && selectedInvestment.quantity && selectedInvestment.quantity > 0 && (
+                    <>
+                      <p>• 持有数量：{selectedInvestment.quantity}</p>
+                      <p>• 计算单价：¥ {(updateYieldFormData.currentValue / selectedInvestment.quantity).toFixed(2)}（当天价值 ÷ 数量）</p>
+                    </>
+                  )}
+                  <p>• 当天收益：¥ {(updateYieldFormData.currentValue - (selectedInvestment.totalBuyAmount || 0)).toLocaleString()}</p>
+                  <p>• 当天收益率：{((updateYieldFormData.currentValue - (selectedInvestment.totalBuyAmount || 0)) / (selectedInvestment.totalBuyAmount || 1) * 100).toFixed(2)}%</p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">更新日期</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={updateYieldFormData.updateDate}
+                  onChange={(e) => setUpdateYieldFormData({ ...updateYieldFormData, updateDate: e.target.value })}
+                  className="w-full px-4 py-3 pr-10 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+                />
+                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-black pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">备注（可选）</label>
+              <input
+                type="text"
+                value={updateYieldFormData.note}
+                onChange={(e) => setUpdateYieldFormData({ ...updateYieldFormData, note: e.target.value })}
+                placeholder="例如: 市场行情更新"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setShowUpdateYieldDialog(false)}
+              className="px-4 py-2 text-black hover:bg-gray-100 rounded-xl"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveUpdateYield}
+              className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800"
+            >
+              更新
             </button>
           </DialogFooter>
         </DialogContent>

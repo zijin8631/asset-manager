@@ -37,25 +37,24 @@ npx create-next-app@14 asset-manager --typescript --tailwind --eslint --app --no
 - `@radix-ui/react-dialog` - 对话框组件
 - `@radix-ui/react-slot` - Slot 组件
 
-### 3. 数据库 Schema 定义 ✓ (v2)
+### 3. 数据库 Schema 定义 ✓ (v4)
 文件: `lib/db.ts`
 
 ```typescript
-// 账户类型: cash | bank | alipay | wechat | security
-// 投资类型: stock | fund | bond | gold | wealth | fixed_income | us_stock | cd | reits | crypto
-// accounts (id, name, type, balance, currency, icon, color, createdAt, updatedAt)
-// transactions (id, accountId, type, amount, category, date, note, createdAt)
-// investments (id, type, symbol, name, quantity, costPrice, currentPrice, currency,
-//              subType, manualYield, manualYieldDate, totalProfit, lastUpdated, createdAt)
-// yieldRecords (id, investmentId, yieldRate, yieldAmount, recordDate, note, createdAt)
+// 核心数据库表 (v4)
+// accounts: 现金、银行卡、支付宝、微信支付、证券账户
+// transactions: 收支交易记录
+// investments: 10种投资类型，包含收益计算字段
+// yieldRecords: 收益历史记录
+// investmentTransactions: 投资交易记录（买入/卖出）
 ```
 
-**更新内容**:
-- 数据库升级到 version 2
-- 新增 `Investment` 类型扩展：支持 10 种投资类型
-- 新增子分类支持（债券：长债/短债/企业债/国债/可转债；基金：股票基金/债券基金/混合基金/货币基金/指数基金/ETF）
-- 新增手动收益字段：`manualYield`、`manualYieldDate`、`totalProfit`
-- 新增 `YieldRecord` 表：记录收益历史
+**当前版本 (v4)**:
+- 数据库包含 5 个表：`accounts`、`transactions`、`investments`、`yieldRecords`、`investmentTransactions`
+- 支持 5 种账户类型：现金、银行卡、支付宝、微信支付、证券账户
+- 支持 10 种投资类型：股票、基金、债券、黄金、理财、固收+、美股、同业存单、REITs、加密货币
+- 完整的收益管理：收益记录、投资交易记录、预期收益率跟踪
+- 详细的数据库版本升级历史见下文
 
 ### 4. 页面结构 ✓
 | 页面 | 文件 | 状态 |
@@ -161,6 +160,76 @@ npx create-next-app@14 asset-manager --typescript --tailwind --eslint --app --no
   - 保留手动输入单价和份额的选项
   - 显示当前单价和计算提示
 
+### 13. 资产分类与收益功能优化 ✓ (2026-02-05)
+
+- **资产分类重构**:
+  - Dashboard页面资产配置扩展为7类：流动资产（现金/银行卡/支付宝/微信）、股票、基金、债券、美股、固收（理财/固收+/同业存单）、另类投资（黄金/REITs/加密货币）
+  - 资产页面同步更新投资分类配置，按股票、基金、债券、美股、固收、另类投资分组展示
+  - 投资页面保持分类一致性，确保三个页面的资产分类统一
+
+- **编辑与更新收益功能分离**:
+  - 投资页面新增独立"更新收益"按钮和对话框，分离编辑和更新收益功能
+  - 编辑功能简化：仅处理投资基本信息（类型、代码、名称、子分类、预期收益率等），移除收益相关字段
+  - 更新收益功能增强：支持更新当前价格（数量类型）或当前价值（金额类型），自动重新计算收益和收益率
+  - 界面优化：调整按钮顺序和样式，添加"更新收益"紫色按钮（RefreshCw图标）
+
+- **TypeScript错误修复**:
+  - 修复添加表单中可选字段的非空断言问题（`buyAmount!`、`currentValue!`等）
+  - 修复收益率百分比类型错误（字符串转为数字）
+  - 修复多个可选字段的类型安全处理
+
+### 14. 更新收益功能优化 ✓ (2026-02-05)
+
+- **简化用户输入**:
+  - 将"更新收益"功能简化为统一输入"当天价值"
+  - 移除当前价格和当前价值的区分，用户只需输入当天总价值
+  - 系统自动计算：对于有数量类型，自动计算当前单价 = 当天价值 ÷ 数量
+
+- **增强信息展示**:
+  - 在更新收益对话框中显示持仓详细信息：持有数量、总买入金额、当前单价
+  - 实时显示计算提示：计算单价、当天收益、当天收益率
+  - 明确最初的价值和份额不变，只需输入当天价值
+
+- **统一计算逻辑**:
+  - 统一收益计算：总收益 = 当天价值 - 总买入金额
+  - 统一收益率计算：收益率 = (总收益 ÷ 总买入金额) × 100%
+  - 自动更新当前价格字段（有数量类型）和当前价值字段
+
+- **用户体验优化**:
+  - 简化对话框布局，减少用户决策点
+  - 提供实时计算反馈，增强操作信心
+  - 保持操作流程直观：输入当天价值 → 查看计算结果 → 确认更新
+
+### 15. 数据备份恢复功能完善 ✓ (2026-02-05)
+
+- **完整数据备份**:
+  - 备份所有5个数据库表：accounts、transactions、investments、yieldRecords、investmentTransactions
+  - 包含数据库schema版本信息（v4）用于兼容性检查
+  - 自动生成包含日期的备份文件名：`asset-backup-YYYY-MM-DD.json`
+
+- **增强数据恢复**:
+  - 完整验证备份数据格式，确保包含必要表数据
+  - 数据库版本兼容性检查：拒绝高于当前版本的备份数据
+  - 详细的确认对话框，显示备份数据统计信息
+  - 支持旧版本备份文件（处理缺失的可选表）
+
+- **用户交互优化**:
+  - 备份成功消息显示数据统计（账户数、交易数、投资数）
+  - 恢复前显示详细确认对话框，列出所有表的数据量
+  - 错误处理包含具体错误信息，便于问题排查
+  - 清除数据操作添加额外警告，防止误操作
+
+- **技术实现细节**:
+  - 使用IndexedDB的`bulkAdd()`方法提升恢复性能
+  - 处理可选表字段：yieldRecords和investmentTransactions
+  - 包含schemaVersion字段用于未来数据迁移
+  - 统一的错误处理和用户反馈机制
+
+- **PWA集成**:
+  - 保持PWA安装引导功能（iOS/Android/Desktop）
+  - 支持检测已安装的PWA应用
+  - 完整的安装引导界面
+
 ---
 
 ## 数据库版本升级说明
@@ -202,7 +271,7 @@ npx create-next-app@14 asset-manager --typescript --tailwind --eslint --app --no
 ### 第二阶段 - 功能实现
 - [ ] 交易记录：添加/编辑/删除交易
 - [ ] 收益记录历史页面（查看 yieldRecords）
-- [ ] 数据导入/导出功能
+- [x] 数据导入/导出功能 ✓
 
 ### 第三阶段 - PWA 完善
 - [ ] 注册 Service Worker
@@ -236,7 +305,7 @@ asset-manager/
 │   └── ui/
 │       └── dialog.tsx     # Shadcn UI Dialog 组件
 ├── lib/
-│   ├── db.ts              # Dexie.js 数据库 Schema (v2)
+│   ├── db.ts              # Dexie.js 数据库 Schema (v4)
 │   └── utils.ts           # cn 工具函数
 ├── public/
 │   ├── manifest.json      # PWA 清单文件

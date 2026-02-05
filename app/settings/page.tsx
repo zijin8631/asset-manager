@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Download, Upload, Trash2, Moon, Sun, Info, Smartphone, Share2, AlertCircle } from 'lucide-react';
-import { db, Account, Transaction, Investment } from '@/lib/db';
+import { db, Account, Transaction, Investment, YieldRecord, InvestmentTransaction } from '@/lib/db';
 
 interface BackupData {
   accounts: Account[];
   transactions: Transaction[];
   investments: Investment[];
+  yieldRecords?: YieldRecord[];
+  investmentTransactions?: InvestmentTransaction[];
   exportDate: string;
   version: string;
+  schemaVersion?: number;
 }
 
 const settings = [
@@ -83,13 +86,18 @@ export default function Settings() {
       const accounts = await db.accounts.toArray();
       const transactions = await db.transactions.toArray();
       const investments = await db.investments.toArray();
+      const yieldRecords = await db.yieldRecords.toArray();
+      const investmentTransactions = await db.investmentTransactions.toArray();
 
       const backupData: BackupData = {
         accounts,
         transactions,
         investments,
+        yieldRecords,
+        investmentTransactions,
         exportDate: new Date().toISOString(),
         version: '1.0.0',
+        schemaVersion: 4, // 数据库版本v4
       };
 
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -102,7 +110,10 @@ export default function Settings() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setBackupMessage({ type: 'success', text: '数据备份成功！' });
+      setBackupMessage({
+        type: 'success',
+        text: `数据备份成功！包含 ${accounts.length} 个账户、${transactions.length} 条交易、${investments.length} 个投资`
+      });
       setTimeout(() => setBackupMessage(null), 3000);
     } catch (error) {
       console.error('备份失败:', error);
@@ -125,22 +136,55 @@ export default function Settings() {
         const text = await file.text();
         const data: BackupData = JSON.parse(text);
 
-        // 验证数据格式
+        // 验证数据格式（基本验证）
         if (!data.accounts || !data.transactions || !data.investments) {
-          throw new Error('数据格式不正确');
+          throw new Error('数据格式不正确：缺少必要表数据');
         }
+
+        // 检查数据库版本兼容性
+        const backupSchemaVersion = data.schemaVersion || 1;
+        if (backupSchemaVersion > 4) {
+          throw new Error(`备份数据版本(v${backupSchemaVersion})高于当前系统(v4)，请更新应用`);
+        }
+
+        // 显示确认对话框
+        const shouldRestore = confirm(
+          `确定要恢复数据吗？这将替换所有现有数据。\n\n` +
+          `备份包含：\n` +
+          `• ${data.accounts.length} 个账户\n` +
+          `• ${data.transactions.length} 条交易\n` +
+          `• ${data.investments.length} 个投资\n` +
+          `• ${data.yieldRecords?.length || 0} 条收益记录\n` +
+          `• ${data.investmentTransactions?.length || 0} 条投资交易`
+        );
+
+        if (!shouldRestore) return;
 
         // 清空现有数据
         await db.accounts.clear();
         await db.transactions.clear();
         await db.investments.clear();
+        await db.yieldRecords.clear();
+        await db.investmentTransactions.clear();
 
-        // 恢复数据
+        // 恢复数据（使用bulkAdd提升性能）
         await db.accounts.bulkAdd(data.accounts);
         await db.transactions.bulkAdd(data.transactions);
         await db.investments.bulkAdd(data.investments);
 
-        setBackupMessage({ type: 'success', text: `成功恢复 ${data.accounts.length} 个账户、${data.transactions.length} 条交易、${data.investments.length} 个投资` });
+        // 恢复可选表数据（旧版本备份可能没有这些表）
+        if (data.yieldRecords && data.yieldRecords.length > 0) {
+          await db.yieldRecords.bulkAdd(data.yieldRecords);
+        }
+
+        if (data.investmentTransactions && data.investmentTransactions.length > 0) {
+          await db.investmentTransactions.bulkAdd(data.investmentTransactions);
+        }
+
+        setBackupMessage({
+          type: 'success',
+          text: `成功恢复 ${data.accounts.length} 个账户、${data.transactions.length} 条交易、${data.investments.length} 个投资`
+        });
         setTimeout(() => setBackupMessage(null), 3000);
       } catch (error) {
         console.error('恢复失败:', error);
@@ -154,12 +198,20 @@ export default function Settings() {
 
   // 清除数据
   const handleClear = () => {
-    if (confirm('确定要删除所有数据吗？此操作不可恢复！')) {
-      db.accounts.clear();
-      db.transactions.clear();
-      db.investments.clear();
-      setBackupMessage({ type: 'success', text: '数据已清除' });
-      setTimeout(() => setBackupMessage(null), 3000);
+    if (confirm('确定要删除所有数据吗？此操作将清空所有账户、交易、投资、收益记录和投资交易数据，且不可恢复！')) {
+      try {
+        db.accounts.clear();
+        db.transactions.clear();
+        db.investments.clear();
+        db.yieldRecords.clear();
+        db.investmentTransactions.clear();
+        setBackupMessage({ type: 'success', text: '所有数据已清除' });
+        setTimeout(() => setBackupMessage(null), 3000);
+      } catch (error) {
+        console.error('清除数据失败:', error);
+        setBackupMessage({ type: 'error', text: '清除数据失败' });
+        setTimeout(() => setBackupMessage(null), 3000);
+      }
     }
   };
 
