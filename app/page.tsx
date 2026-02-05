@@ -45,26 +45,63 @@ export default function Dashboard() {
   };
 
   // 计算资产数据
-  const cashBalance = accounts
-    .filter(a => a.type === 'cash' || a.type === 'alipay' || a.type === 'wechat')
+  // 流动资产：现金、支付宝、微信、银行卡
+  const liquidAssets = accounts
+    .filter(a => a.type === 'cash' || a.type === 'alipay' || a.type === 'wechat' || a.type === 'bank')
     .reduce((sum, a) => sum + a.balance, 0);
 
-  const bankBalance = accounts
-    .filter(a => a.type === 'bank')
-    .reduce((sum, a) => sum + a.balance, 0);
+  // 投资分类市值计算
+  const calculateInvestmentValue = (investment: Investment) => {
+    const quantity = investment.quantity || 0;
+    const currentPrice = investment.currentPrice || 0;
+    return quantity * currentPrice;
+  };
 
-  const investmentValue = investments.reduce((sum, i) => {
-    const quantity = i.quantity || 0;
-    const currentPrice = i.currentPrice || 0;
-    return sum + (quantity * currentPrice);
-  }, 0);
+  const calculateInvestmentValue2 = (investment: Investment) => {
+    if (investment.quantity && investment.currentPrice) {
+      return investment.quantity * investment.currentPrice;
+    }
+    return investment.currentValue || 0;
+  };
 
-  const totalAssets = cashBalance + bankBalance + investmentValue;
+  // 按分类计算投资市值
+  const stockValue = investments
+    .filter(i => i.type === 'stock')
+    .reduce((sum, i) => sum + calculateInvestmentValue2(i), 0);
 
+  const fundValue = investments
+    .filter(i => i.type === 'fund')
+    .reduce((sum, i) => sum + calculateInvestmentValue2(i), 0);
+
+  const bondValue = investments
+    .filter(i => i.type === 'bond')
+    .reduce((sum, i) => sum + calculateInvestmentValue2(i), 0);
+
+  const usStockValue = investments
+    .filter(i => i.type === 'us_stock')
+    .reduce((sum, i) => sum + calculateInvestmentValue2(i), 0);
+
+  // 固收类：理财、固收+、同业存单
+  const fixedIncomeValue = investments
+    .filter(i => i.type === 'wealth' || i.type === 'fixed_income' || i.type === 'cd')
+    .reduce((sum, i) => sum + calculateInvestmentValue2(i), 0);
+
+  // 另类投资：黄金、REITs、加密货币
+  const alternativeValue = investments
+    .filter(i => i.type === 'gold' || i.type === 'reits' || i.type === 'crypto')
+    .reduce((sum, i) => sum + calculateInvestmentValue2(i), 0);
+
+  const totalAssets = liquidAssets + stockValue + fundValue + bondValue + usStockValue + fixedIncomeValue + alternativeValue;
+
+  // 资产配置数据（只显示有值的分类）
   const assetData = [
-    { name: '现金', value: cashBalance, color: '#3b82f6' },
-    { name: '银行卡', value: bankBalance, color: '#8b5cf6' },
-    { name: '投资', value: investmentValue, color: '#10b981' },
+    { name: '流动资产', value: liquidAssets, color: '#3b82f6' },
+    { name: '股票', value: stockValue, color: '#8b5cf6' },
+    { name: '基金', value: fundValue, color: '#10b981' },
+    { name: '债券', value: bondValue, color: '#f59e0b' },
+    { name: '美股', value: usStockValue, color: '#ef4444' },
+    { name: '固收', value: fixedIncomeValue, color: '#ec4899' },
+    { name: '另类投资', value: alternativeValue, color: '#14b8a6' },
   ].filter(d => d.value > 0);
 
   const handleSubmit = () => {

@@ -29,29 +29,35 @@ const ACCOUNT_CATEGORIES = [
 
 // 投资类型配置（从投资页面复制）
 const INVESTMENT_TYPES: { value: InvestmentType; label: string; icon: any; category: string; hasQuantity: boolean }[] = [
-  { value: 'stock', label: '股票', icon: TrendingUp, category: '权益类', hasQuantity: true },
-  { value: 'fund', label: '基金', icon: BadgeDollarSign, category: '权益类', hasQuantity: true },
-  { value: 'us_stock', label: '美股', icon: TrendingUp, category: '权益类', hasQuantity: true },
-  { value: 'bond', label: '债券', icon: Landmark, category: '固收类', hasQuantity: true },
-  { value: 'cd', label: '同业存单', icon: Landmark, category: '固收类', hasQuantity: false },
+  { value: 'stock', label: '股票', icon: TrendingUp, category: '股票', hasQuantity: true },
+  { value: 'fund', label: '基金', icon: BadgeDollarSign, category: '基金', hasQuantity: true },
+  { value: 'us_stock', label: '美股', icon: TrendingUp, category: '美股', hasQuantity: true },
+  { value: 'bond', label: '债券', icon: Landmark, category: '债券', hasQuantity: true },
+  { value: 'cd', label: '同业存单', icon: Landmark, category: '固收', hasQuantity: false },
   { value: 'gold', label: '黄金', icon: Coins, category: '另类投资', hasQuantity: false },
-  { value: 'wealth', label: '理财', icon: Wallet, category: '固收类', hasQuantity: false },
-  { value: 'fixed_income', label: '固收+', icon: PiggyBank, category: '固收类', hasQuantity: false },
+  { value: 'wealth', label: '理财', icon: Wallet, category: '固收', hasQuantity: false },
+  { value: 'fixed_income', label: '固收+', icon: PiggyBank, category: '固收', hasQuantity: false },
   { value: 'reits', label: 'REITs', icon: DollarSign, category: '另类投资', hasQuantity: true },
   { value: 'crypto', label: '加密货币', icon: Coins, category: '另类投资', hasQuantity: true },
 ];
 
 // 按分类分组投资类型
 const INVESTMENT_CATEGORIES = [
-  { name: '权益类', types: ['stock', 'fund', 'us_stock'] as InvestmentType[] },
-  { name: '固收类', types: ['bond', 'cd', 'wealth', 'fixed_income'] as InvestmentType[] },
+  { name: '股票', types: ['stock'] as InvestmentType[] },
+  { name: '基金', types: ['fund'] as InvestmentType[] },
+  { name: '债券', types: ['bond'] as InvestmentType[] },
+  { name: '美股', types: ['us_stock'] as InvestmentType[] },
+  { name: '固收', types: ['cd', 'wealth', 'fixed_income'] as InvestmentType[] },
   { name: '另类投资', types: ['gold', 'reits', 'crypto'] as InvestmentType[] },
 ];
 
 // 投资分类图标映射
 const INVESTMENT_CATEGORY_ICONS: Record<string, any> = {
-  '权益类': TrendingUp,
-  '固收类': Landmark,
+  '股票': TrendingUp,
+  '基金': BadgeDollarSign,
+  '债券': Landmark,
+  '美股': TrendingUp,
+  '固收': PiggyBank,
   '另类投资': Coins,
 };
 
