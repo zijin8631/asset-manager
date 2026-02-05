@@ -205,8 +205,8 @@ export default function Settings() {
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">设置</h1>
-        <p className="text-sm text-gray-500 mt-1">应用设置</p>
+        <h1 className="text-2xl font-semibold text-black">设置</h1>
+        <p className="text-sm text-black mt-1">应用设置</p>
       </header>
 
       {showMessage()}
@@ -214,7 +214,7 @@ export default function Settings() {
       <div className="space-y-6">
         {settings.map((section) => (
           <div key={section.section}>
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            <h2 className="text-xs font-semibold text-black uppercase tracking-wider mb-3">
               {section.section}
             </h2>
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 divide-y divide-gray-100">
@@ -245,14 +245,14 @@ export default function Settings() {
                     className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-gray-600" />
+                      <Icon className="w-5 h-5 text-black" />
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-medium text-gray-900">{item.label}</p>
-                      <p className="text-xs text-gray-500">{item.description}</p>
+                      <p className="font-medium text-black">{item.label}</p>
+                      <p className="text-xs text-black">{item.description}</p>
                     </div>
                     <svg
-                      className="w-5 h-5 text-gray-400"
+                      className="w-5 h-5 text-black"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -277,7 +277,7 @@ export default function Settings() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white w-full max-w-sm rounded-2xl p-6">
             <h3 className="text-lg font-semibold mb-4">安装到主屏幕</h3>
-            <div className="space-y-4 text-sm text-gray-600">
+            <div className="space-y-4 text-sm text-black">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                   <Share2 className="w-4 h-4 text-blue-600" />
@@ -308,7 +308,7 @@ export default function Settings() {
       )}
 
       <div className="mt-8 text-center">
-        <p className="text-xs text-gray-400">所有数据均存储在本地浏览器</p>
+        <p className="text-xs text-black">所有数据均存储在本地浏览器</p>
       </div>
     </div>
   );

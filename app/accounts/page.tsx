@@ -1,62 +1,398 @@
-import { CreditCard, Wallet, Landmark, Plus } from 'lucide-react';
+'use client';
 
-const accounts = [
-  { id: 1, name: '招商银行', type: 'bank', balance: 25400, currency: 'CNY' },
-  { id: 2, name: '建设银行', type: 'bank', balance: 12000, currency: 'CNY' },
-  { id: 3, name: '现金钱包', type: 'cash', balance: 5800, currency: 'CNY' },
-  { id: 4, name: '支付宝', type: 'cash', balance: 2000, currency: 'CNY' },
+import { useState, useEffect } from 'react';
+import { CreditCard, Wallet, Landmark, Plus, Edit2, Trash2, Smartphone, WalletCards, TrendingUp } from 'lucide-react';
+import { db, Account, AccountType, Investment } from '@/lib/db';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+
+// 账户类型配置
+const ACCOUNT_TYPES: { value: AccountType; label: string; icon: any; category: string }[] = [
+  { value: 'cash', label: '现金', icon: Wallet, category: '现金' },
+  { value: 'alipay', label: '支付宝', icon: Smartphone, category: '现金' },
+  { value: 'wechat', label: '微信支付', icon: WalletCards, category: '现金' },
+  { value: 'bank', label: '银行卡', icon: CreditCard, category: '银行' },
+  { value: 'security', label: '证券账户', icon: Landmark, category: '证券' },
 ];
 
+// 按分类分组账户类型
+const ACCOUNT_CATEGORIES = [
+  { name: '现金', types: ['cash', 'alipay', 'wechat'] as AccountType[] },
+  { name: '银行', types: ['bank'] as AccountType[] },
+  { name: '证券', types: ['security'] as AccountType[] },
+];
+
+// 分类图标映射
+const CATEGORY_ICONS: Record<string, any> = {
+  '现金': Wallet,
+  '银行': CreditCard,
+  '证券': Landmark,
+  '投资': TrendingUp,
+};
+
 export default function Accounts() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showDialog, setShowDialog] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'cash' as AccountType,
+    balance: 0,
+    currency: 'CNY',
+  });
+
+  // 加载账户数据
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  const loadAccounts = async () => {
+    try {
+      const [accountData, investmentData] = await Promise.all([
+        db.accounts.orderBy('createdAt').reverse().toArray(),
+        db.investments.orderBy('createdAt').reverse().toArray(),
+      ]);
+      setAccounts(accountData);
+      setInvestments(investmentData);
+    } catch (error) {
+      console.error('加载数据失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+  const totalInvestmentValue = investments.reduce((sum, inv) => {
+    const quantity = inv.quantity || 0;
+    const currentPrice = inv.currentPrice || 0;
+    return sum + (quantity * currentPrice);
+  }, 0);
+  const totalAssets = totalBalance + totalInvestmentValue;
+
+  // 按分类计算余额
+  const getCategoryBalance = (categoryName: string) => {
+    const category = ACCOUNT_CATEGORIES.find(c => c.name === categoryName);
+    if (!category) return 0;
+    return accounts
+      .filter(acc => category.types.includes(acc.type))
+      .reduce((sum, acc) => sum + acc.balance, 0);
+  };
+
+  // 获取分类下的账户
+  const getCategoryAccounts = (categoryName: string) => {
+    const category = ACCOUNT_CATEGORIES.find(c => c.name === categoryName);
+    if (!category) return [];
+    return accounts.filter(acc => category.types.includes(acc.type));
+  };
+
+  // 计算投资总成本和总收益
+  const getInvestmentStats = () => {
+    let totalCost = 0;
+    let totalValue = 0;
+    let totalProfit = 0;
+
+    investments.forEach(inv => {
+      const quantity = inv.quantity || 0;
+      const currentPrice = inv.currentPrice || 0;
+      const currentValue = quantity * currentPrice;
+      const cost = inv.totalBuyAmount || 0;
+
+      totalCost += cost;
+      totalValue += currentValue;
+      totalProfit += (currentValue - cost);
+    });
+
+    return { totalCost, totalValue, totalProfit };
+  };
+
+  const handleOpenDialog = (account?: Account) => {
+    if (account) {
+      setEditingAccount(account);
+      setFormData({
+        name: account.name,
+        type: account.type,
+        balance: account.balance,
+        currency: account.currency || 'CNY',
+      });
+    } else {
+      setEditingAccount(null);
+      setFormData({ name: '', type: 'cash', balance: 0, currency: 'CNY' });
+    }
+    setShowDialog(true);
+  };
+
+  const handleCloseDialog = () => {
+    setShowDialog(false);
+    setEditingAccount(null);
+    setFormData({ name: '', type: 'cash', balance: 0, currency: 'CNY' });
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) return;
+
+    try {
+      if (editingAccount) {
+        await db.accounts.update(editingAccount.id!, {
+          name: formData.name,
+          type: formData.type,
+          balance: formData.balance,
+          currency: formData.currency,
+          updatedAt: new Date(),
+        });
+      } else {
+        await db.accounts.add({
+          name: formData.name,
+          type: formData.type,
+          balance: formData.balance,
+          currency: formData.currency,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      loadAccounts();
+      handleCloseDialog();
+    } catch (error) {
+      console.error('保存账户失败:', error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('确定要删除这个账户吗？')) return;
+
+    try {
+      await db.accounts.delete(id);
+      loadAccounts();
+    } catch (error) {
+      console.error('删除账户失败:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-6">
+        <div className="text-center py-20 text-black">加载中...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">资产</h1>
-        <p className="text-sm text-gray-500 mt-1">共 {accounts.length} 个账户</p>
+        <h1 className="text-2xl font-semibold text-black">资产</h1>
+        <p className="text-sm text-black mt-1">共 {accounts.length + investments.length} 个资产</p>
       </header>
 
       <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 mb-6 text-white">
-        <p className="text-sm text-blue-100 mb-1">账户总额</p>
-        <p className="text-4xl font-semibold">¥ {totalBalance.toLocaleString()}</p>
+        <p className="text-sm text-blue-100 mb-1">总资产</p>
+        <p className="text-4xl font-semibold">¥ {totalAssets.toLocaleString()}</p>
       </div>
 
-      <div className="space-y-3">
-        {accounts.map((account) => {
-          const Icon = account.type === 'bank' ? Landmark : Wallet;
+      {/* 按分类展示账户 */}
+      <div className="space-y-6">
+        {ACCOUNT_CATEGORIES.map((category) => {
+          const categoryAccounts = getCategoryAccounts(category.name);
+          const categoryBalance = getCategoryBalance(category.name);
+          const CategoryIcon = CATEGORY_ICONS[category.name];
+
+          if (categoryAccounts.length === 0) return null;
 
           return (
-            <div
-              key={account.id}
-              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-                  {account.type === 'bank' ? (
-                    <CreditCard className="w-6 h-6 text-gray-600" />
-                  ) : (
-                    <Wallet className="w-6 h-6 text-gray-600" />
-                  )}
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{account.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {account.type === 'bank' ? '银行卡' : '电子钱包'}
-                  </p>
-                </div>
+            <div key={category.name} className="space-y-3">
+              {/* 分类标题 */}
+              <div className="flex items-center gap-2 px-1">
+                <CategoryIcon className="w-4 h-4 text-black" />
+                <span className="text-sm font-medium text-black">{category.name}</span>
+                <span className="text-sm text-black ml-auto">¥ {categoryBalance.toLocaleString()}</span>
               </div>
-              <p className="text-xl font-semibold text-gray-900">
-                ¥ {account.balance.toLocaleString()}
-              </p>
+
+              {/* 该分类下的账户 */}
+              {categoryAccounts.map((account) => {
+                const typeConfig = ACCOUNT_TYPES.find(t => t.value === account.type) || ACCOUNT_TYPES[0];
+                const Icon = typeConfig.icon;
+
+                return (
+                  <div
+                    key={account.id}
+                    className="bg-white rounded-xl p-5 shadow-sm border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                          <Icon className="w-6 h-6 text-black" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-black">{account.name}</p>
+                          <p className="text-xs text-black">{typeConfig.label}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-xl font-semibold text-black">
+                          ¥ {account.balance.toLocaleString()}
+                        </p>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleOpenDialog(account)}
+                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                            title="编辑"
+                          >
+                            <Edit2 className="w-4 h-4 text-black" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(account.id!)}
+                            className="p-2 rounded-lg hover:bg-red-50 transition-colors"
+                            title="删除"
+                          >
+                            <Trash2 className="w-4 h-4 text-black hover:text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
+
+        {/* 投资部分 */}
+        {investments.length > 0 && (
+          <div className="space-y-3">
+            {/* 分类标题 */}
+            <div className="flex items-center gap-2 px-1">
+              <TrendingUp className="w-4 h-4 text-black" />
+              <span className="text-sm font-medium text-black">投资</span>
+              <span className="text-sm text-black ml-auto">¥ {totalInvestmentValue.toLocaleString()}</span>
+            </div>
+
+            {/* 投资汇总卡片 */}
+            <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-black" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-black">投资组合</p>
+                    <p className="text-xs text-black">共 {investments.length} 个持仓</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-semibold text-black">¥ {totalInvestmentValue.toLocaleString()}</p>
+                  <p className={`text-xs ${getInvestmentStats().totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {getInvestmentStats().totalProfit >= 0 ? '+' : ''}¥ {getInvestmentStats().totalProfit.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-black mb-1">总投入</p>
+                  <p className="font-medium text-black">¥ {getInvestmentStats().totalCost.toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-black mb-1">收益率</p>
+                  <p className={`font-medium ${getInvestmentStats().totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {getInvestmentStats().totalCost > 0 ? ((getInvestmentStats().totalProfit / getInvestmentStats().totalCost) * 100).toFixed(2) : '0.00'}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <button className="fixed bottom-24 right-4 w-14 h-14 bg-black text-white rounded-full shadow-lg flex items-center justify-center">
+      {accounts.length === 0 && investments.length === 0 && (
+        <div className="text-center py-20 text-black">
+          <Wallet className="w-16 h-16 mx-auto mb-4 text-black" />
+          <p className="text-black">暂无资产，点击右下角添加账户</p>
+        </div>
+      )}
+
+      {/* 添加/编辑账户按钮 */}
+      <button
+        onClick={() => handleOpenDialog()}
+        className="fixed bottom-24 right-4 w-14 h-14 bg-black text-white rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+      >
         <Plus className="w-6 h-6" />
       </button>
+
+      {/* 添加/编辑账户对话框 */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingAccount ? '编辑账户' : '添加账户'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">账户名称</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="例如: 招商银行"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">账户类型</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as AccountType })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              >
+                {ACCOUNT_TYPES.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">余额</label>
+              <input
+                type="number"
+                value={formData.balance}
+                onChange={(e) => setFormData({ ...formData, balance: Number(e.target.value) })}
+                placeholder="0.00"
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-black mb-1">币种</label>
+              <select
+                value={formData.currency}
+                onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
+              >
+                <option value="CNY">CNY - 人民币</option>
+                <option value="USD">USD - 美元</option>
+                <option value="EUR">EUR - 欧元</option>
+                <option value="HKD">HKD - 港币</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={handleCloseDialog}
+              className="px-4 py-2 text-black hover:bg-gray-100 rounded-xl"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800"
+            >
+              {editingAccount ? '保存' : '添加'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

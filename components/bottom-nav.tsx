@@ -28,7 +28,7 @@ export function BottomNav() {
               className={`
                 flex flex-col items-center justify-center flex-1 h-full
                 transition-all duration-200
-                ${isActive ? 'text-black' : 'text-gray-400'}
+                ${isActive ? 'text-black' : 'text-black'}
               `}
             >
               <Icon
