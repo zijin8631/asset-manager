@@ -370,9 +370,9 @@ export default function Investments() {
 
       if (typeConfig.hasQuantity) {
         // 计算当前单价：当前价值 / 持有份额
-        const currentPrice = addFormData.quantity > 0 ? currentValue / addFormData.quantity : 0;
-        updateData.quantity = addFormData.quantity;
-        updateData.avgCostPrice = addFormData.price;
+        const currentPrice = addFormData.quantity! > 0 ? currentValue / addFormData.quantity! : 0;
+        updateData.quantity = addFormData.quantity!;
+        updateData.avgCostPrice = addFormData.price!;
         updateData.currentPrice = currentPrice;
         updateData.currentValue = currentValue;
       } else {
@@ -894,14 +894,14 @@ export default function Investments() {
                     onChange={(e) => {
                       const quantity = Number(e.target.value);
                       // 如果买入金额已设置，重新计算单价；否则重新计算买入金额
-                      let price = addFormData.price;
-                      let buyAmount = addFormData.buyAmount;
-                      if (addFormData.buyAmount > 0 && quantity > 0) {
+                      let price = addFormData.price!;
+                      let buyAmount = addFormData.buyAmount!;
+                      if (addFormData.buyAmount! > 0 && quantity > 0) {
                         // 优先保持买入金额不变，重新计算单价
-                        price = addFormData.buyAmount / quantity;
-                      } else if (addFormData.price > 0) {
+                        price = addFormData.buyAmount! / quantity;
+                      } else if (addFormData.price! > 0) {
                         // 保持单价不变，重新计算买入金额
-                        buyAmount = quantity * addFormData.price;
+                        buyAmount = quantity * addFormData.price!;
                       }
                       setAddFormData({
                         ...addFormData,
@@ -922,7 +922,7 @@ export default function Investments() {
                     value={addFormData.price}
                     onChange={(e) => {
                       const price = Number(e.target.value);
-                      const buyAmount = addFormData.quantity * price;
+                      const buyAmount = addFormData.quantity! * price;
                       setAddFormData({
                         ...addFormData,
                         price,
@@ -933,7 +933,7 @@ export default function Investments() {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
                   />
                   <p className="text-xs text-black mt-1">
-                    自动计算买入金额：持有份额 × 成本单价 = {addFormData.quantity * addFormData.price}
+                    自动计算买入金额：持有份额 × 成本单价 = {addFormData.quantity! * addFormData.price!}
                   </p>
                 </div>
               </>
@@ -952,20 +952,20 @@ export default function Investments() {
               />
               <p className="text-xs text-black mt-1">
                 {hasQuantityType(addFormData.type)
-                  ? `系统自动计算：当前单价 = 当前价值 ÷ 持有份额 = ${addFormData.quantity > 0 ? (addFormData.currentValue / addFormData.quantity).toFixed(2) : '0.00'}，收益 = 当前价值 - 买入金额`
+                  ? `系统自动计算：当前单价 = 当前价值 ÷ 持有份额 = ${addFormData.quantity! > 0 ? (addFormData.currentValue! / addFormData.quantity!).toFixed(2) : '0.00'}，收益 = 当前价值 - 买入金额`
                   : '当前价值 = 买入金额 + 持有收益'
                 }
               </p>
             </div>
 
             {/* 当前单价（只读显示，有数量类型） */}
-            {hasQuantityType(addFormData.type) && addFormData.quantity > 0 && (
+            {hasQuantityType(addFormData.type) && addFormData.quantity! > 0 && (
               <div>
                 <label className="block text-sm font-medium text-black mb-1">当前单价（计算值）</label>
                 <input
                   type="number"
                   step="0.01"
-                  value={addFormData.quantity > 0 ? (addFormData.currentValue / addFormData.quantity).toFixed(2) : '0.00'}
+                  value={addFormData.quantity! > 0 ? (addFormData.currentValue! / addFormData.quantity!).toFixed(2) : '0.00'}
                   readOnly
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-black"
                 />
@@ -983,7 +983,7 @@ export default function Investments() {
                   value={addFormData.buyAmount}
                   onChange={(e) => {
                     const buyAmount = Number(e.target.value);
-                    const price = addFormData.quantity > 0 ? buyAmount / addFormData.quantity : 0;
+                    const price = addFormData.quantity! > 0 ? buyAmount / addFormData.quantity! : 0;
                     setAddFormData({
                       ...addFormData,
                       buyAmount,
@@ -994,7 +994,7 @@ export default function Investments() {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-black focus:outline-none text-black"
                 />
                 <p className="text-xs text-black mt-1">
-                  自动计算单价：买入金额 ÷ 持有份额 = {addFormData.quantity > 0 ? (addFormData.buyAmount / addFormData.quantity).toFixed(2) : '0.00'}
+                  自动计算单价：买入金额 ÷ 持有份额 = {addFormData.quantity! > 0 ? (addFormData.buyAmount! / addFormData.quantity!).toFixed(2) : '0.00'}
                 </p>
               </div>
             )}

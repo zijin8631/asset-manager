@@ -163,7 +163,7 @@ export default function Dashboard() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => `¥ ${value.toLocaleString()}`}
+                      formatter={(value: number | undefined) => `¥ ${value ? value.toLocaleString() : '0'}`}
                       contentStyle={{
                         borderRadius: '8px',
                         border: 'none',

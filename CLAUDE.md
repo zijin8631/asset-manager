@@ -369,6 +369,32 @@ npm start
 
 ---
 
+## PWA 离线功能修复 (2026-02-06)
+
+### 修复内容
+1. **PWA配置优化** ([next.config.mjs](next.config.mjs))
+   - 确保 `disable: false` - PWA 在生产构建中启用
+   - 扩展 `runtimeCaching` 策略：图片、JS/CSS、字体、页面路由、API请求、数据文件
+   - 页面路由使用 NetworkFirst 策略，3秒超时回退缓存
+
+2. **Service Worker 调试代码** ([components/bottom-nav.tsx](components/bottom-nav.tsx))
+   - 添加调试输出显示 Service Worker 注册状态
+   - 监听控制器变更和消息事件
+   - 控制台显示详细注册信息便于问题排查
+
+3. **HTTPS 测试指导**
+   - Microsoft Dev Tunnels: `devtunnels host -p 3000 --protocol https`
+   - ngrok: `ngrok http 3000`
+   - 本地自签名证书: 使用 mkcert
+
+### 测试步骤
+1. 构建生产版本：`npm run build && npm start`
+2. 通过 HTTPS 访问应用
+3. DevTools Network 面板勾选 "Offline" 测试
+4. 检查 Application → Cache Storage 验证缓存
+
+---
+
 ## 备注
 
 - 所有数据存储在本地浏览器 IndexedDB 中
