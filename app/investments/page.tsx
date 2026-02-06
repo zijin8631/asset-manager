@@ -170,19 +170,33 @@ export default function Investments() {
     loadData();
 
     // 监听数据库变化，自动重新加载数据
-    const unsubscribe = (db as any).on('changes', (changes: any[]) => {
-      // 检查是否有 investments 或 investmentTransactions 表的变化
-      const hasRelevantChanges = changes.some(change =>
-        change.table === 'investments' || change.table === 'investmentTransactions' || change.table === 'yieldRecords'
-      );
-      if (hasRelevantChanges) {
-        console.log('检测到数据库变化，重新加载投资数据');
-        loadData();
-      }
-    });
+    let unsubscribe: any;
+    try {
+      unsubscribe = (db as any).on('changes', (changes: any[]) => {
+        // 检查是否有 investments 或 investmentTransactions 表的变化
+        const hasRelevantChanges = changes.some(change =>
+          change.table === 'investments' || change.table === 'investmentTransactions' || change.table === 'yieldRecords'
+        );
+        if (hasRelevantChanges) {
+          console.log('检测到数据库变化，重新加载投资数据');
+          loadData();
+        }
+      });
+      console.log('数据库变化监听器已注册', unsubscribe);
+    } catch (error) {
+      console.error('注册数据库变化监听器失败:', error);
+    }
 
     // 清理监听器
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      } else if (unsubscribe && typeof unsubscribe.unsubscribe === 'function') {
+        unsubscribe.unsubscribe();
+      } else {
+        console.warn('无法清理数据库变化监听器，未找到取消订阅方法');
+      }
+    };
   }, []);
 
   const loadData = async () => {

@@ -439,6 +439,45 @@ npm start
 
 ---
 
+## 客户端异常修复 (2026-02-06)
+
+### 问题描述
+用户报告应用在在线运行时出现"client-side exception"错误。
+
+### 问题分析
+排查发现数据库变化监听器中的 `db.on('changes')` 方法可能返回非函数值（`undefined` 或其他），导致清理函数尝试调用非函数值而抛出运行时异常。
+
+### 解决方案
+增强数据库变化监听器的错误处理和安全的清理逻辑：
+
+1. **添加 try-catch 包装**：捕获注册监听器时可能发生的错误
+2. **安全的取消订阅逻辑**：
+   - 检查返回值是否为函数（`typeof unsubscribe === 'function'`）
+   - 检查返回值是否有 `.unsubscribe()` 方法
+   - 添加警告日志，便于调试
+3. **控制台调试信息**：输出监听器注册状态，便于问题排查
+
+### 修改内容
+在三个页面中更新数据库变化监听器代码：
+
+1. **Dashboard页面** ([app/page.tsx](app/page.tsx)) - 第31-58行
+2. **资产页面** ([app/accounts/page.tsx](app/accounts/page.tsx)) - 第89-102行
+3. **投资页面** ([app/investments/page.tsx](app/investments/page.tsx)) - 第172-186行
+
+### 技术实现
+- 使用 `let unsubscribe: any` 变量存储监听器返回值
+- `try-catch` 包装监听器注册过程
+- 清理函数中多重检查取消订阅方法
+- 控制台输出调试信息（`console.log`、`console.error`、`console.warn`）
+
+### 效果
+- 防止因 `unsubscribe()` 调用非函数值导致的客户端异常
+- 增强错误恢复能力，应用继续运行
+- 提供详细的调试信息，便于后续问题排查
+- 保持原有的数据库变化监听和数据同步功能
+
+---
+
 ## 备注
 
 - 所有数据存储在本地浏览器 IndexedDB 中
