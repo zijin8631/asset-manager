@@ -168,6 +168,21 @@ export default function Investments() {
   // 加载持仓数据
   useEffect(() => {
     loadData();
+
+    // 监听数据库变化，自动重新加载数据
+    const unsubscribe = db.on('changes', (changes) => {
+      // 检查是否有 investments 或 investmentTransactions 表的变化
+      const hasRelevantChanges = changes.some(change =>
+        change.table === 'investments' || change.table === 'investmentTransactions' || change.table === 'yieldRecords'
+      );
+      if (hasRelevantChanges) {
+        console.log('检测到数据库变化，重新加载投资数据');
+        loadData();
+      }
+    });
+
+    // 清理监听器
+    return () => unsubscribe();
   }, []);
 
   const loadData = async () => {

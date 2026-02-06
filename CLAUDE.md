@@ -395,6 +395,45 @@ npm start
 
 ---
 
+## 离线数据同步修复 (2026-02-06)
+
+### 问题描述
+用户报告在离线状态下，投资页面更新数据后，概览页面需要刷新才能显示最新数据。各页面间数据不同步。
+
+### 解决方案
+使用 Dexie.js 的 `on('changes')` 事件监听数据库变化，实现跨页面实时数据同步。
+
+### 修改内容
+
+1. **Dashboard页面** ([app/page.tsx](app/page.tsx))
+   - 添加 `db.on('changes')` 事件监听器
+   - 监听 `accounts` 和 `investments` 表变化
+   - 检测到相关变化时自动调用 `loadData()`
+
+2. **资产页面** ([app/accounts/page.tsx](app/accounts/page.tsx))
+   - 添加数据库变化监听器
+   - 监听 `accounts` 和 `investments` 表变化
+   - 自动重新加载资产数据
+
+3. **投资页面** ([app/investments/page.tsx](app/investments/page.tsx))
+   - 添加数据库变化监听器
+   - 监听 `investments`、`investmentTransactions` 和 `yieldRecords` 表变化
+   - 自动重新加载投资数据
+
+### 技术实现
+- 每个页面在 `useEffect` 中注册数据库变化监听器
+- 监听器检查相关表的变化，避免不必要的数据重新加载
+- 组件卸载时自动清理监听器（`return () => unsubscribe()`）
+- 控制台输出调试信息便于验证
+
+### 效果
+- 在任一页面更新数据后，其他页面自动同步最新数据
+- 无需手动刷新页面
+- 离线状态下完全功能可用
+- 保持PWA的离线访问能力
+
+---
+
 ## 备注
 
 - 所有数据存储在本地浏览器 IndexedDB 中

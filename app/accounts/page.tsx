@@ -85,6 +85,21 @@ export default function Accounts() {
   // 加载账户数据
   useEffect(() => {
     loadAccounts();
+
+    // 监听数据库变化，自动重新加载数据
+    const unsubscribe = db.on('changes', (changes) => {
+      // 检查是否有 accounts 或 investments 表的变化
+      const hasRelevantChanges = changes.some(change =>
+        change.table === 'accounts' || change.table === 'investments'
+      );
+      if (hasRelevantChanges) {
+        console.log('检测到数据库变化，重新加载资产数据');
+        loadAccounts();
+      }
+    });
+
+    // 清理监听器
+    return () => unsubscribe();
   }, []);
 
   const loadAccounts = async () => {
