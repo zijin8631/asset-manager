@@ -426,6 +426,11 @@ npm start
 - 组件卸载时自动清理监听器（`return () => unsubscribe()`）
 - 控制台输出调试信息便于验证
 
+### TypeScript 错误修复
+- Dexie.js 类型定义中 `db.on('changes')` 方法类型不匹配
+- 使用类型断言 `(db as any).on('changes', (changes: any[]) => { ... })` 解决编译错误
+- 保持功能完整性的同时绕过类型检查
+
 ### 效果
 - 在任一页面更新数据后，其他页面自动同步最新数据
 - 无需手动刷新页面

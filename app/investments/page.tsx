@@ -170,7 +170,7 @@ export default function Investments() {
     loadData();
 
     // 监听数据库变化，自动重新加载数据
-    const unsubscribe = db.on('changes', (changes) => {
+    const unsubscribe = (db as any).on('changes', (changes: any[]) => {
       // 检查是否有 investments 或 investmentTransactions 表的变化
       const hasRelevantChanges = changes.some(change =>
         change.table === 'investments' || change.table === 'investmentTransactions' || change.table === 'yieldRecords'
