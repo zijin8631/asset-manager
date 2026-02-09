@@ -462,6 +462,7 @@ export default function Accounts() {
               <label className="block text-sm font-medium text-black mb-1">余额</label>
               <input
                 type="number"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={formData.balance}
                 onChange={(e) => setFormData({ ...formData, balance: Number(e.target.value) })}
                 placeholder="0.00"

@@ -579,7 +579,13 @@ export default function Investments() {
 
       // 统一使用当天价值计算收益
       const currentValue = updateYieldFormData.currentValue;
-      const totalBuyAmount = selectedInvestment.totalBuyAmount || 0;
+
+      // 对于无数量类型（固收、另类投资），本金存储在 totalCost 字段
+      // 对于有数量类型（股票、基金等），本金存储在 totalBuyAmount 字段
+      const totalBuyAmount = hasQuantity
+        ? (selectedInvestment.totalBuyAmount || 0)
+        : (selectedInvestment.totalCost || 0);
+
       const totalProfit = currentValue - totalBuyAmount;
       const yieldRate = totalBuyAmount > 0 ? (totalProfit / totalBuyAmount) * 100 : 0;
 
@@ -587,6 +593,11 @@ export default function Investments() {
       updateData.currentValue = currentValue;
       updateData.totalProfit = totalProfit;
       updateData.yieldRate = yieldRate;
+
+      // 对于无数量类型，也更新 totalCost
+      if (!hasQuantity) {
+        updateData.totalCost = currentValue;
+      }
 
       // 对于有数量类型，计算当前价格
       if (hasQuantity) {
@@ -664,7 +675,7 @@ export default function Investments() {
           )}
           <span>
             {totalProfit >= 0 ? '+' : ''}
-            {totalProfit.toLocaleString()} ({profitPercent}%)
+            {totalProfit.toLocaleString()} ({profitPercent.toFixed(2)}%)
           </span>
           <span className="text-xs opacity-60">总收益</span>
         </div>
@@ -919,6 +930,7 @@ export default function Investments() {
                   <label className="block text-sm font-medium text-black mb-1">持有份额</label>
                   <input
                     type="number"
+                    onWheel={(e) => e.currentTarget.blur()}
                     value={addFormData.quantity}
                     onChange={(e) => {
                       const quantity = Number(e.target.value);
@@ -948,6 +960,7 @@ export default function Investments() {
                   <input
                     type="number"
                     step="0.01"
+                    onWheel={(e) => e.currentTarget.blur()}
                     value={addFormData.price}
                     onChange={(e) => {
                       const price = Number(e.target.value);
@@ -974,6 +987,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={addFormData.currentValue}
                 onChange={(e) => setAddFormData({ ...addFormData, currentValue: Number(e.target.value) })}
                 placeholder={hasQuantityType(addFormData.type) ? "例如: 10500（持有收益+买入金额）" : "例如: 10500"}
@@ -994,6 +1008,7 @@ export default function Investments() {
                 <input
                   type="number"
                   step="0.01"
+                  onWheel={(e) => e.currentTarget.blur()}
                   value={addFormData.quantity! > 0 ? (addFormData.currentValue! / addFormData.quantity!).toFixed(2) : '0.00'}
                   readOnly
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-black"
@@ -1009,6 +1024,7 @@ export default function Investments() {
                 <input
                   type="number"
                   step="0.01"
+                  onWheel={(e) => e.currentTarget.blur()}
                   value={addFormData.buyAmount}
                   onChange={(e) => {
                     const buyAmount = Number(e.target.value);
@@ -1034,6 +1050,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={addFormData.expectedYieldRate || 0}
                 onChange={(e) => setAddFormData({ ...addFormData, expectedYieldRate: Number(e.target.value) })}
                 placeholder="例如: 3.5"
@@ -1174,6 +1191,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={editFormData.expectedYieldRate || 0}
                 onChange={(e) => setEditFormData({ ...editFormData, expectedYieldRate: Number(e.target.value) })}
                 placeholder="例如: 3.5"
@@ -1263,6 +1281,7 @@ export default function Investments() {
                   <input
                     type="number"
                     step="0.01"
+                    onWheel={(e) => e.currentTarget.blur()}
                     value={tradeFormData.amount}
                     onChange={(e) => {
                       const amount = Number(e.target.value);
@@ -1289,6 +1308,7 @@ export default function Investments() {
                     <input
                       type="number"
                       step="0.01"
+                      onWheel={(e) => e.currentTarget.blur()}
                       value={tradeFormData.price}
                       onChange={(e) => {
                         const price = Number(e.target.value);
@@ -1307,6 +1327,7 @@ export default function Investments() {
                     <label className="block text-sm font-medium text-black mb-1">交易份额</label>
                     <input
                       type="number"
+                      onWheel={(e) => e.currentTarget.blur()}
                       value={tradeFormData.quantity}
                       onChange={(e) => {
                         const quantity = Number(e.target.value);
@@ -1336,6 +1357,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={tradeFormData.amount}
                 onChange={(e) => setTradeFormData({ ...tradeFormData, amount: Number(e.target.value) })}
                 placeholder="例如: 5000"
@@ -1407,6 +1429,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={yieldRecordFormData.yieldAmount}
                 onChange={(e) => setYieldRecordFormData({ ...yieldRecordFormData, yieldAmount: Number(e.target.value) })}
                 placeholder="例如: 500"
@@ -1419,6 +1442,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={yieldRecordFormData.yieldRate}
                 onChange={(e) => setYieldRecordFormData({ ...yieldRecordFormData, yieldRate: Number(e.target.value) })}
                 placeholder="例如: 3.5"
@@ -1509,7 +1533,7 @@ export default function Investments() {
                   )}
                   <div className={hasQuantityType(selectedInvestment.type) ? 'col-span-2' : ''}>
                     <p className="text-gray-500">总买入金额</p>
-                    <p className="text-black font-medium">¥ {(selectedInvestment.totalBuyAmount || 0).toLocaleString()}</p>
+                    <p className="text-black font-medium">¥ {(hasQuantityType(selectedInvestment.type) ? (selectedInvestment.totalBuyAmount || 0) : (selectedInvestment.totalCost || 0)).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -1521,6 +1545,7 @@ export default function Investments() {
               <input
                 type="number"
                 step="0.01"
+                onWheel={(e) => e.currentTarget.blur()}
                 value={updateYieldFormData.currentValue}
                 onChange={(e) => setUpdateYieldFormData({ ...updateYieldFormData, currentValue: Number(e.target.value) })}
                 placeholder={selectedInvestment && hasQuantityType(selectedInvestment.type) ? "例如: 10500（数量 × 单价）" : "例如: 10500"}
@@ -1528,15 +1553,15 @@ export default function Investments() {
               />
               {selectedInvestment && (
                 <div className="mt-2 space-y-1 text-xs text-black">
-                  <p>• 总买入金额：¥ {(selectedInvestment.totalBuyAmount || 0).toLocaleString()}</p>
+                  <p>• 总买入金额：¥ {(hasQuantityType(selectedInvestment.type) ? (selectedInvestment.totalBuyAmount || 0) : (selectedInvestment.totalCost || 0)).toLocaleString()}</p>
                   {hasQuantityType(selectedInvestment.type) && selectedInvestment.quantity && selectedInvestment.quantity > 0 && (
                     <>
                       <p>• 持有数量：{selectedInvestment.quantity}</p>
                       <p>• 计算单价：¥ {(updateYieldFormData.currentValue / selectedInvestment.quantity).toFixed(2)}（当天价值 ÷ 数量）</p>
                     </>
                   )}
-                  <p>• 当天收益：¥ {(updateYieldFormData.currentValue - (selectedInvestment.totalBuyAmount || 0)).toLocaleString()}</p>
-                  <p>• 当天收益率：{((updateYieldFormData.currentValue - (selectedInvestment.totalBuyAmount || 0)) / (selectedInvestment.totalBuyAmount || 1) * 100).toFixed(2)}%</p>
+                  <p>• 当天收益：¥ {(updateYieldFormData.currentValue - (hasQuantityType(selectedInvestment.type) ? (selectedInvestment.totalBuyAmount || 0) : (selectedInvestment.totalCost || 0))).toLocaleString()}</p>
+                  <p>• 当天收益率：{((updateYieldFormData.currentValue - (hasQuantityType(selectedInvestment.type) ? (selectedInvestment.totalBuyAmount || 0) : (selectedInvestment.totalCost || 0))) / (hasQuantityType(selectedInvestment.type) ? (selectedInvestment.totalBuyAmount || 1) : (selectedInvestment.totalCost || 1)) * 100).toFixed(2)}%</p>
                 </div>
               )}
             </div>
